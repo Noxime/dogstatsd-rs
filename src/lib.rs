@@ -59,8 +59,9 @@
 //! ```
 
 #![cfg_attr(feature = "unstable", feature(test))]
-#![deny(warnings, missing_debug_implementations, missing_copy_implementations, missing_docs)]
 extern crate chrono;
+#[macro_use]
+extern crate json;
 
 use chrono::Utc;
 use std::net::UdpSocket;
@@ -400,6 +401,19 @@ impl Client {
             (Cow::Owned(title), Cow::Borrowed(text)) => self.send(&Event::new(&title, text), tags),
             (Cow::Borrowed(title), Cow::Owned(text)) => self.send(&Event::new(title, &text), tags),
             (Cow::Owned(title), Cow::Owned(text)) => self.send(&Event::new(&title, &text), tags)
+        }
+    }
+
+    pub fn log<'a, I, S, T>(&self, severity: S, message: S, tags: I) -> DogstatsdResult
+        where I: IntoIterator<Item=T>,
+              S: Into<Cow<'a, str>>,
+              T: AsRef<str>
+    {
+        match (severity.into(), message.into()) {
+            (Cow::Borrowed(level), Cow::Borrowed(text)) => self.send(&Log::new(level, text), tags),
+            (Cow::Owned(level), Cow::Borrowed(text)) => self.send(&Log::new(&level, text), tags),
+            (Cow::Borrowed(level), Cow::Owned(text)) => self.send(&Log::new(level, &text), tags),
+            (Cow::Owned(level), Cow::Owned(text)) => self.send(&Log::new(&level, &text), tags),
         }
     }
 

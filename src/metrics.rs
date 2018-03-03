@@ -327,6 +327,30 @@ impl<'a> Event<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct Log<'a> {
+    severity: &'a str,
+    message: &'a str,
+}
+
+impl<'a> Metric for Log<'a> {
+    fn metric_type_format(&self) -> String {
+        (object! {
+            "severity" => self.severity,
+            "message" => self.message,
+        }).to_string()
+    }
+}
+
+impl<'a> Log<'a> {
+    pub fn new(severity: &'a str, message: &'a str) -> Self {
+        Log {
+            severity,
+            message,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
@@ -405,6 +429,13 @@ mod tests {
         let metric = SetMetric::new("set".into(), "13579".into());
 
         assert_eq!("set:13579|s", metric.metric_type_format())
+    }
+
+    #[test]
+    fn test_log_metric() {
+        let metric = Log::new("info".into(), "hello world".into());
+
+        assert_eq!(r#"{"severity":"info","message":"hello world"}"#, metric.metric_type_format());
     }
 
     #[test]
