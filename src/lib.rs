@@ -51,6 +51,9 @@
 //! // Report a sample of a histogram
 //! client.histogram("my_histogram", "67890", tags).unwrap();
 //!
+//! // Report a sample of a distribution
+//! client.distribution("distribution", "67890", tags).unwrap();
+//!
 //! // Report a member of a set
 //! client.set("my_set", "13579", tags).unwrap();
 //!
@@ -318,6 +321,30 @@ impl Client {
         }
     }
 
+    /// Report a value in a distribution
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///   use dogstatsd::{Client, Options};
+    ///
+    ///   let client = Client::new(Options::default()).unwrap();
+    ///   client.distribution("distribution", "67890", &["tag:distribution"])
+    ///       .unwrap_or_else(|e| println!("Encountered error: {}", e));
+    /// ```
+    pub fn distribution<'a, I, S, T>(&self, stat: S, val: S, tags: I) -> DogstatsdResult
+        where I: IntoIterator<Item=T>,
+              S: Into<Cow<'a, str>>,
+              T: AsRef<str>,
+    {
+        match (stat.into(), val.into()) {
+            (Cow::Borrowed(stat), Cow::Borrowed(val)) => self.send(&DistributionMetric::new(stat, val), tags),
+            (Cow::Owned(stat), Cow::Borrowed(val)) => self.send(&DistributionMetric::new(&stat, val), tags),
+            (Cow::Borrowed(stat), Cow::Owned(val)) => self.send(&DistributionMetric::new(stat, &val), tags),
+            (Cow::Owned(stat), Cow::Owned(val)) => self.send(&DistributionMetric::new(&stat, &val), tags)
+        }
+    }
+
     /// Report a value in a set
     ///
     /// # Examples
@@ -422,7 +449,7 @@ impl Client {
               M: Metric,
               S: AsRef<str>,
     {
-        let formatted_metric = format_for_send(&metric.metric_type_format(), &self.namespace, tags);
+        let formatted_metric = format_for_send(metric, &self.namespace, tags);
         self.socket.send_to(formatted_metric.as_slice(), &self.to_addr)?;
         Ok(())
     }
@@ -525,6 +552,18 @@ mod bench {
         let mut i = 0;
         b.iter(|| {
             client.histogram("bench.histogram", &i.to_string(), &tags).unwrap();
+            i += 1;
+        })
+    }
+
+    #[bench]
+    fn bench_distribution(b: &mut Bencher) {
+        let options = Options::default();
+        let client = Client::new(options).unwrap();
+        let tags = vec!["name1:value1"];
+        let mut i = 0;
+        b.iter(|| {
+            client.distribution("bench.distribution", &i.to_string(), &tags).unwrap();
             i += 1;
         })
     }
